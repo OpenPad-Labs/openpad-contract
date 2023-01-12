@@ -1,5 +1,5 @@
 
-module openpad::user_tests {
+module maxi::user_tests {
 
     // #[test_only]
     // use sui::object::{Self, ID, UID};
@@ -14,7 +14,7 @@ module openpad::user_tests {
     use sui::test_scenario::{Self};
 
     #[test_only]
-    use openpad::user::{Self, init_test, UserProfile, UserRegistry};
+    use maxi::user::{Self, init_test, UserProfile, UserRegistry};
 
     #[test]
     fun create_and_upate_name_should_works() {

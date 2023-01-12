@@ -1,5 +1,5 @@
 [package]
-name = "openpad-contract"
+name = "maxi-contract"
 version = "0.0.1"
 
 [dependencies]
@@ -7,5 +7,5 @@ version = "0.0.1"
 Sui = { local = "../../mystenlabs/sui/crates/sui-framework" }
 
 [addresses]
-openpad =  "0x0"
+maxi =  "0x0"
 sui =  "0000000000000000000000000000000000000002"

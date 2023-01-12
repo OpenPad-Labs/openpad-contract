@@ -1,5 +1,5 @@
 
-module openpad::user {
+module maxi::user {
 
     use std::vector;
     use sui::object::{Self, ID, UID};
