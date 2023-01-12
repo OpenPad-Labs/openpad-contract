@@ -41,7 +41,9 @@ module maxi::project {
 
     struct ArtworkStore has key {
         id: UID,
+        name: String,   // use project name
         artworks: ObjectTable<u64, Artwork>,
+        sequence: u64,
         length: u64,
     }
 
@@ -49,6 +51,14 @@ module maxi::project {
         id: UID,
         photo: vector<u8>,
         attribute: Attribute,
+    }
+
+    struct ArtwrokField has store, copy, drop {
+        photo: vector<u8>,
+        filename: String,
+        name: String,
+        description: String,
+        background: Option<String>,
     }
 
     struct Attribute has store, copy, drop {
@@ -267,9 +277,58 @@ module maxi::project {
         transfer::transfer(artwork, tx_context::sender(ctx));
     }
 
+    public entry fun create_artwork_store(name: String, ctx: &mut TxContext) {
+        let id = object::new(ctx);
+        let store = ArtworkStore {
+            id,
+            name,
+            artworks: ot::new(ctx),
+            sequence: 0,
+            length: 0,
+        };
+
+        transfer::transfer(store, tx_context::sender(ctx));
+    }
+
+    public entry fun add_artwork_to_store(store: &mut ArtworkStore, artwork: Artwork) {
+        let idx = artworks_sequence(store);
+        ot::add(&mut store.artworks, idx, artwork);
+        store.sequence = store.sequence + 1;
+        store.length = store.length + 1;
+    }
+
+    public fun batch_new_artwork(values: vector<ArtwrokField>, ctx: &mut TxContext): vector<Artwork> {
+        let artworks = vector::empty();
+
+        vector::reverse(&mut values);
+
+        while (vector::is_empty(&values)) {
+            let field = vector::pop_back(&mut values);
+            let artwork = new_artwork(field.photo, field.filename, field.name, field.description, field.background, ctx);
+            vector::push_back(&mut artworks, artwork);
+        };
+
+        artworks
+    }
+
+    // public entry fun batch_create_artwork_to_project(project: &mut ProjectProfile, values: vector<ArtwrokField>, ctx: &mut TxContext) {
+    //     let artworks = batch_new_artwork(values, ctx);
+    //     add_artworks_to_project(project, artworks);
+    // }
+
+    public fun remove_artwork_from_store(store: &mut ArtworkStore, idx: u64): Artwork {
+        let artwork = ot::remove(&mut store.artworks, idx);
+        store.length = store.length - 1;
+
+        artwork
+    }
+    
+    // Getters
     public fun artworks_length(artworks: &ArtworkStore): u64 {
         artworks.length
     }
 
-    
+    public fun artworks_sequence(artworks: &ArtworkStore): u64 {
+        artworks.sequence
+    }
 }
