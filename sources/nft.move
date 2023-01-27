@@ -33,9 +33,9 @@ module maxi::nft {
     /// In all likelihood, there would be libraries for common drop schemes, auctions, etc. that NFT creators can leverage.
     /// But a creator can also define a totally custom policy using arbitrary Move code (e.g., only someone that owns a
     /// JellyNFT can mint a PeanutButterNFT, ...)
-    struct MintPolicy<phantom T> has key {
+    struct MintPolicy has key {
         id: UID,
-        mint_cap: MintCap<T>,
+        mint_cap: MintCap,
         /// Price of the NFT, in SUI
         price: u64,
     }
@@ -45,9 +45,9 @@ module maxi::nft {
     /// In all likelihood, there would be libraries for common policies that NFT creators can
     /// leverage. But a creator can also define a totally custom policy using arbitrary Move code
     /// (e.g., the royalty payment must be half SUI and half DOGE, ...)
-    struct RoyaltyPolicy<phantom T> has key {
+    struct RoyaltyPolicy has key {
         id: UID,
-        royalty_cap: RoyaltyCap<T>,
+        royalty_cap: RoyaltyCap,
         /// Amount to collect on each sale. Use a fixed price here for simplicity, almost
         /// certainly a fraction in practice
         royalty_amount: u64,
@@ -62,17 +62,17 @@ module maxi::nft {
     struct Witness has drop {}
 
     fun init(ctx: &mut TxContext) {
-        let name = string::utf8(b"Example");
-        let total_supply = 50;
-        let price = 1000;
-        let (collection, mint_cap, royalty_cap) = collection::create<Witness, MaxiNFT>(&Witness{}, name, total_supply, ctx);
-        transfer::share_object(MintPolicy { id: object::new(ctx), mint_cap, price });
-        transfer::share_object(RoyaltyPolicy { id: object::new(ctx), royalty_amount: 100, total_collected: 0, total_sales: 0, royalty_cap, beneficiaries: vector::singleton(tx_context::sender(ctx))});
-        transfer::freeze_object(collection);
+        // let name = string::utf8(b"Example");
+        // let total_supply = 50;
+        // let price = 1000;
+        // let (collection, mint_cap, royalty_cap) = collection::create<Witness>(&Witness{}, name, total_supply, ctx);
+        // transfer::share_object(MintPolicy { id: object::new(ctx), mint_cap, price });
+        // transfer::share_object(RoyaltyPolicy { id: object::new(ctx), royalty_amount: 100, total_collected: 0, total_sales: 0, royalty_cap, beneficiaries: vector::singleton(tx_context::sender(ctx))});
+        // transfer::freeze_object(collection);
     }
 
     public fun mint(
-        policy: &mut MintPolicy<MaxiNFT>, payment: &mut Coin<SUI>, collection: &Collection<Witness, MaxiNFT>, ctx: &mut TxContext
+        policy: &mut MintPolicy, payment: &mut Coin<SUI>, collection: &Collection, ctx: &mut TxContext
     ): MaxiNFT {
         // MaxiNFT {
         //     id: object::new(ctx),
@@ -83,7 +83,7 @@ module maxi::nft {
         abort(0)
     }
 
-    public fun buy(policy: &mut RoyaltyPolicy<MaxiNFT>, payment: &mut Coin<SUI>, ctx: &mut TxContext): RoyaltyReceipt<MaxiNFT> {
+    public fun buy(policy: &mut RoyaltyPolicy, payment: &mut Coin<SUI>, ctx: &mut TxContext): RoyaltyReceipt<MaxiNFT> {
         // let receipt = collection::create_receipt(&policy.royalty_cap);
         // // deduct policy.amount from payment, split, send to policy.benificiaries
         // receipt
