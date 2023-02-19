@@ -4,15 +4,16 @@ module maxi::nft {
     use std::string::{Self, String};
     use std::vector;
 
-    use sui::object::{Self, UID};
+    use sui::object::{Self, UID, ID};
     // use sui::object_table::ObjectTable;
     use sui::sui::SUI;
     use sui::coin::Coin;
     use sui::tx_context::{Self, TxContext};
     use sui::url::Url;
     use sui::transfer;
+    use sui::event::emit;
 
-    use maxi::collection::{Self, Collection, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
+    use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt, Artwork};
 
     /// the nft itself
     struct MaxiNFT has key, store {
@@ -61,6 +62,14 @@ module maxi::nft {
 
     struct Witness has drop {}
 
+    // events
+    struct MaxiNFTCreatedEvent has copy, drop {
+        nft_id: ID,
+        collection_id: ID,
+        name: String,
+        url: Url,
+    }
+
     fun init(ctx: &mut TxContext) {
         // let name = string::utf8(b"Example");
         // let total_supply = 50;
@@ -72,15 +81,38 @@ module maxi::nft {
     }
 
     public fun mint(
-        policy: &mut MintPolicy, payment: &mut Coin<SUI>, collection: &Collection, ctx: &mut TxContext
-    ): MaxiNFT {
+        payment: Coin<SUI>, project: &mut Collection, whitelist: &mut Whitelist, ctx: &mut TxContext
+    ) {
         // MaxiNFT {
         //     id: object::new(ctx),
         //     collection: collection::mint(&mut policy.mint_cap),
         //     // ...deduct policy.price from `payment
         //     // ...derive name and Url from collection
         // }
-        abort(0)
+        let id = object::new(ctx);
+        let nft_id = object::uid_to_inner(&id);
+        let collection_id = collection::collection_id(project);
+
+        let artWork = collection::mint(payment, project, whitelist, ctx);
+        let collection_proof = collection::new_collectionProof(project);
+        let name = collection::artwork_name(artWork);
+        let url = collection::artwork_url(artWork);
+
+        let maxiNft = MaxiNFT{
+            id,
+            collection: collection_proof,
+            name,
+            url,
+        };
+
+        transfer::transfer(maxiNft, tx_context::sender(ctx));
+
+        emit(MaxiNFTCreatedEvent {
+            nft_id,
+            collection_id,
+            name,
+            url,
+        });
     }
 
     public fun buy(policy: &mut RoyaltyPolicy, payment: &mut Coin<SUI>, ctx: &mut TxContext): RoyaltyReceipt<MaxiNFT> {

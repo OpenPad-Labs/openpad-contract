@@ -14,6 +14,13 @@ module maxi::collection {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
 
+    use sui::balance::{Self, Balance};
+    use sui::sui::SUI;
+    use sui::url::Url;
+    use sui::coin::{Self, Coin};
+    use sui::object_table;
+    use sui::math::min;
+
     struct Collection has key, store {
         id: UID,
         // Standard fields that every collection needs go here
@@ -45,6 +52,7 @@ module maxi::collection {
         minted: VecMap<address, u64>,   // record a address and minted number, (address, artwork numbers)
         created_at: u64,
 
+        profits: Balance<SUI>
         // Custom metadata outside of the standard fields goes here
         // custom_metadata: M,
     }
@@ -85,6 +93,7 @@ module maxi::collection {
     
     struct Whitelist has key, store {
         id: UID,
+        collection_id: ID,
         listed: VecMap<address, Eligibility>,     // record a address can mint number
         minted: VecMap<u64, MintedTime>    // record the artwork mint by addres, (artwork_idx, address)
     }
@@ -107,9 +116,25 @@ module maxi::collection {
         attribute: Attribute,
     }
 
+    struct CollectionCreatedEvent has copy, drop {
+        collection_id: ID,
+        creator: address,
+        name: String,
+        total_supply: u64,
+        created_at: u64,
+    }
+
     // errors
     const EArtworks_Too_Large: u64 = 10001;
     const EArtwork_Field_Length_Invalid: u64 = 10002;
+    const ENoProfits: u64 = 10003;
+    const EInsufficientFunds: u64 = 10004;
+    const EMintTooMany: u64 = 10005;
+    const ENotMarchWhiteList: u64 = 10006;
+    const ENotMarchCollection: u64 = 10007;
+    const EDeadLine: u64 = 10008;
+    const EArtWorkIdx: u64 = 10009;
+    const EMaxTotalSupply: u64 = 10010;
 
     struct ManageCap has key {
         id: UID,
@@ -128,6 +153,12 @@ module maxi::collection {
         num_remaining: u64,
     }
 
+    struct CollectCap has key, store {
+        id: UID,
+        /// ID of the collection that this MintCap corresponds to
+        collection: ID,
+    }
+
     /// Grants the permission to mint `RoyaltyReceipt`'s for `T`.
     /// Receipts are required when paying for NFT's
     struct RoyaltyCap has key, store {
@@ -142,10 +173,17 @@ module maxi::collection {
         collection: ID,
     }
 
+    fun init(ctx: &mut TxContext) {
+
+        transfer::transfer(ManageCap{id:object::new(ctx)},
+            tx_context::sender(ctx));
+    }
+
     /// Instantiate a collection for T.
     /// To be called from the module initializer in the module that declares `T`
-    public fun new_collection(
+    public entry fun new_collection(
         // _witness: &T,
+        _cap: &ManageCap,
         creator: address,
         name: String,
         slogan: String,
@@ -163,7 +201,7 @@ module maxi::collection {
         artwork_placeholder: vector<u8>,
         photo_onchain: bool,
         ctx: &mut TxContext,
-    ): (Collection, MintCap, RoyaltyCap) {
+    ) {
         let id = object::new(ctx);
         let collection_id = object::uid_to_inner(&id);
         let created_at = tx_context::epoch(ctx);
@@ -191,6 +229,7 @@ module maxi::collection {
             minted: vec_map::empty(),
             photo_onchain,
             created_at,
+            profits: balance::zero<SUI>()
         };
 
         let mint_cap = MintCap {
@@ -199,12 +238,29 @@ module maxi::collection {
             num_remaining: total_supply,
         };
 
+        let collect_cap = CollectCap {
+            id: object::new(ctx),
+            collection: collection_id,
+        };
+
         let royalty_cap = RoyaltyCap {
             id: object::new(ctx),
             collection: collection_id,
         };
 
-        (collection, mint_cap, royalty_cap)
+
+        emit(CollectionCreatedEvent {
+            collection_id,
+            creator,
+            name,
+            total_supply,
+            created_at,
+        });
+
+        transfer::share_object(collection);
+        transfer::transfer(mint_cap, creator);
+        transfer::transfer(collect_cap, creator);
+        transfer::transfer(royalty_cap, creator);
     }
 
     // new a artwork and return
@@ -342,7 +398,15 @@ module maxi::collection {
     }
 
     // new a whitelist 
-    public entry fun create_whitelist(whitelist: vector<address>, num: u64, price: u64, deadline: u64, ctx: &mut TxContext) {
+    public entry fun create_whitelist(
+        _cap: &ManageCap,
+        whitelist: vector<address>,
+        _project: &mut Collection,
+        num: u64,
+        price: u64,
+        deadline: u64,
+        ctx: &mut TxContext
+    ) {
         let listed = vec_map::empty();
 
         while (!vector::is_empty(&whitelist)) {
@@ -351,21 +415,71 @@ module maxi::collection {
 
         let whitelist = Whitelist {
             id: object::new(ctx),
+            collection_id: object::uid_to_inner(&_project.id),
             listed,
             minted: vec_map::empty(),
         };
 
-        transfer::transfer(whitelist, tx_context::sender(ctx));
+        transfer::share_object(whitelist);
     }
 
     // add addresses to a Whitelist // TODO
-    public entry fun add_address_to_whitelist(_cap: &ManageCap, _whitelist: &mut Whitelist, _addresses: vector<address>) {
-        
+    public entry fun add_address_to_whitelist(
+        _cap: &ManageCap,
+        _whitelist: &mut Whitelist,
+        _addresses: vector<address>,
+        num: u64,
+        price: u64,
+        deadline: u64
+    ) {
+
+        while (!vector::is_empty(&_addresses)) {
+            vec_map::insert(&mut _whitelist.listed, pop_back(&mut _addresses), Eligibility { num, price, deadline });
+        };
     }
 
     // user mint // TODO
-    public entry fun mint(_project: &mut Collection, _ctx: &mut TxContext) {
+    public fun mint(payment: Coin<SUI>, _project: &mut Collection, whitelist: &mut Whitelist, _ctx: &mut TxContext): &Artwork {
 
+        let sender = tx_context::sender(_ctx);
+        let epoch = tx_context::epoch(_ctx);
+
+        assert!(object::uid_to_inner(&_project.id) == whitelist.collection_id, ENotMarchCollection);
+
+        assert!(vec_map::contains(&whitelist.listed, &sender), ENotMarchWhiteList);
+
+        let eligibility = vec_map::get(&whitelist.listed, &tx_context::sender(_ctx));
+
+        assert!(eligibility.deadline > epoch, EDeadLine);
+
+        //update collection profits
+        let payment_balance = coin::into_balance(payment);
+        assert!(balance::value(&payment_balance) == eligibility.price, EInsufficientFunds);
+        balance::join( &mut _project.profits, payment_balance);
+
+        //update collection art_sequence
+        let artWork_idx = _project.art_sequence;
+        assert!(object_table::length(&_project.artworks) > artWork_idx, EArtWorkIdx);
+        let artWork = object_table::borrow(&_project.artworks, artWork_idx);
+        _project.art_sequence = artWork_idx + 1;
+
+        //update collection minted
+        let minted = 0;
+        if (vec_map::contains(&_project.minted, &sender)){
+            // minted = vec_map::get_mut(&mut _project.minted, &sender);
+            (_, minted) = vec_map::remove(&mut _project.minted, &sender);
+        };
+        minted = minted + 1;
+        vec_map::insert(&mut _project.minted, sender, minted);
+
+        //check whiteList
+        assert!(eligibility.num >= minted, EMintTooMany);
+        vec_map::insert(&mut whitelist.minted, artWork_idx, MintedTime{owner: sender, minted_at: epoch});
+
+        //check total supply
+        assert!(vec_map::size(&whitelist.minted)<= _project.total_supply, EMaxTotalSupply);
+
+        artWork
     }
 
     // airdrop claim // TODO
@@ -403,6 +517,7 @@ module maxi::collection {
             minted,
             photo_onchain,
             created_at,
+            profits,
         } = collection;
 
         let collection_to_share = Collection {
@@ -427,13 +542,26 @@ module maxi::collection {
             minted,
             photo_onchain,
             created_at,
+            profits,
         };
 
         transfer::share_object(collection_to_share);
         transfer::share_object(whitelist);
         object::delete(id);
     }
-    
+
+    public entry fun collect_profits(
+        _cap: &CollectCap,
+        collection: &mut Collection,
+        ctx: &mut TxContext
+    ) {
+
+        let amount = balance::value( & collection.profits);
+        assert!(amount > 0, ENoProfits);
+        let coin = coin::take( &mut collection.profits, amount, ctx);
+        transfer::transfer(coin, tx_context::sender(ctx));
+    }
+
     // Internal functions
 
     // use the desc order field to create asc Artwork.
@@ -465,6 +593,18 @@ module maxi::collection {
         artworks.sequence
     }
 
+    public fun collection_id(collection: &Collection): ID {
+        object::uid_to_inner(&collection.id)
+    }
+
+    public fun artwork_name(artwork: &Artwork): String {
+        artwork.attribute.name
+    }
+
+    public fun artwork_url(artwork: &Artwork): Url {
+        sui::url::new_unsafe_from_bytes(artwork.photo)
+    }
+
     public fun vec_len<T>(vec: &vector<T>): u64 {
         vector::length<T>(vec)
     }
@@ -479,6 +619,13 @@ module maxi::collection {
     // public fun mint(mint_cap: &mut MintCap): CollectionProof {
     //     abort(0)
     // }
+    public fun new_collectionProof(_project: &Collection): CollectionProof{
+        let collectionProof = CollectionProof {
+            collection_id: object::uid_to_inner(&_project.id),
+        };
+
+        collectionProof
+    }
 
     /// To be called from the module that declares `T`.
     /// The caller is responsible for gating usage of the `royalty_cap` with its
