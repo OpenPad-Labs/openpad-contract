@@ -1,8 +1,8 @@
 
 module maxi::nft {
 
-    use std::string::{Self, String};
-    use std::vector;
+    use std::string::String;
+    // use std::vector;
 
     use sui::object::{Self, UID, ID};
     // use sui::object_table::ObjectTable;
@@ -13,7 +13,7 @@ module maxi::nft {
     use sui::transfer;
     use sui::event::emit;
 
-    use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt, Artwork};
+    use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
 
     /// the nft itself
     struct MaxiNFT has key, store {
@@ -91,12 +91,11 @@ module maxi::nft {
         // }
         let id = object::new(ctx);
         let nft_id = object::uid_to_inner(&id);
-        let collection_id = collection::collection_id(project);
 
-        let artWork = collection::mint(payment, project, whitelist, ctx);
-        let collection_proof = collection::new_collectionProof(project);
-        let name = collection::artwork_name(artWork);
-        let url = collection::artwork_url(artWork);
+        // let collection_id = collection::collection_id(project);
+        // let collection_proof = collection::new_collectionProof(project);
+
+        let (collection_id, collection_proof, name, url) = collection::mint(payment, project, whitelist, ctx);
 
         let maxiNft = MaxiNFT{
             id,

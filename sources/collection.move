@@ -19,7 +19,7 @@ module maxi::collection {
     use sui::url::Url;
     use sui::coin::{Self, Coin};
     use sui::object_table;
-    use sui::math::min;
+    // use sui::math::min;
 
     struct Collection has key, store {
         id: UID,
@@ -439,7 +439,12 @@ module maxi::collection {
     }
 
     // user mint // TODO
-    public fun mint(payment: Coin<SUI>, _project: &mut Collection, whitelist: &mut Whitelist, _ctx: &mut TxContext): &Artwork {
+    public fun mint(
+        payment: Coin<SUI>,
+        _project: &mut Collection,
+        whitelist: &mut Whitelist,
+        _ctx: &mut TxContext
+    ): (ID, CollectionProof, String, Url) {
 
         let sender = tx_context::sender(_ctx);
         let epoch = tx_context::epoch(_ctx);
@@ -479,7 +484,7 @@ module maxi::collection {
         //check total supply
         assert!(vec_map::size(&whitelist.minted)<= _project.total_supply, EMaxTotalSupply);
 
-        artWork
+        (collection_id(_project), new_collectionProof(_project), artwork_name(artWork), artwork_url(artWork))
     }
 
     // airdrop claim // TODO
