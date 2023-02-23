@@ -70,7 +70,7 @@ module maxi::nft {
         url: Url,
     }
 
-    fun init(ctx: &mut TxContext) {
+    fun init(_ctx: &mut TxContext) {
         // let name = string::utf8(b"Example");
         // let total_supply = 50;
         // let price = 1000;
@@ -95,7 +95,7 @@ module maxi::nft {
         // let collection_id = collection::collection_id(project);
         // let collection_proof = collection::new_collectionProof(project);
 
-        let (collection_id, collection_proof, name, url) = collection::mint(payment, project, whitelist, ctx);
+        let (collection_id, collection_proof, name, url) = collection::mint(payment, project, whitelist, nft_id, ctx);
 
         let maxiNft = MaxiNFT{
             id,
@@ -114,7 +114,7 @@ module maxi::nft {
         });
     }
 
-    public fun buy(policy: &mut RoyaltyPolicy, payment: &mut Coin<SUI>, ctx: &mut TxContext): RoyaltyReceipt<MaxiNFT> {
+    public fun buy(_policy: &mut RoyaltyPolicy, _payment: &mut Coin<SUI>, _ctx: &mut TxContext): RoyaltyReceipt<MaxiNFT> {
         // let receipt = collection::create_receipt(&policy.royalty_cap);
         // // deduct policy.amount from payment, split, send to policy.benificiaries
         // receipt
