@@ -18,8 +18,7 @@ module maxi::collection {
     use sui::sui::SUI;
     use sui::url::Url;
     use sui::coin::{Self, Coin};
-    use sui::object_table;
-    use std::debug;
+    // use sui::object_table;
     // use sui::math::min;
 
     struct Collection has key, store {
@@ -134,7 +133,7 @@ module maxi::collection {
     const EArtWorkIdx: u64 = 10009;
     const EMaxTotalSupply: u64 = 10010;
 
-    struct ManageCap has key {
+    struct ManageCap has key, store {
         id: UID,
     }
 
@@ -317,10 +316,12 @@ module maxi::collection {
 
         vector::reverse(&mut artworks);
         let idx = 0;
+        //idx need from lenth of collection.artworks
+        let otLength = ot::length(&collection.artworks);
 
         while (idx < artworks_len) {
             let artwork = vector::pop_back(&mut artworks);
-            ot::add(&mut collection.artworks, idx, artwork);
+            ot::add(&mut collection.artworks, idx + otLength, artwork);
             idx = idx + 1;
         };
         
@@ -401,10 +402,8 @@ module maxi::collection {
             };
             vector::push_back(&mut desc_fields, field);
         };
-        debug::print(&desc_fields);
 
         let artworks = batch_new_artwork(desc_fields, ctx);
-        debug::print(&artworks);
 
         add_artworks_to_project(cap, project, artworks);
     }
@@ -452,7 +451,7 @@ module maxi::collection {
 
     // user mint // TODO
     public fun mint(
-        payment: Coin<SUI>,
+        payment: &mut Coin<SUI>,
         project: &mut Collection,
         whitelist: &mut Whitelist,
         nft_id: ID,
@@ -471,14 +470,14 @@ module maxi::collection {
         assert!(eligibility.deadline > epoch, EDeadLine);
 
         //update collection profits
-        let payment_balance = coin::into_balance(payment);
-        assert!(balance::value(&payment_balance) == eligibility.price, EInsufficientFunds);
-        balance::join( &mut project.profits, payment_balance);
+        assert!(coin::value(payment) >= eligibility.price, EInsufficientFunds);
+        let price = balance::split(coin::balance_mut(payment), eligibility.price);
+        balance::join( &mut project.profits, price);
 
         //update collection art_sequence
         let artWork_idx = project.art_sequence;
-        assert!(object_table::length(&project.artworks) > artWork_idx, EArtWorkIdx);
-        let artWork = object_table::borrow(&project.artworks, artWork_idx);
+        assert!(ot::length(&project.artworks) > artWork_idx, EArtWorkIdx);
+        let artWork = ot::borrow(&project.artworks, artWork_idx);
         project.art_sequence = artWork_idx + 1;
 
         //update collection minted

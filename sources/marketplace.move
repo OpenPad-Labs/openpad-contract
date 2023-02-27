@@ -1,9 +1,7 @@
 
 module maxi::marketplace {
 
-    use std::string::String;
-
-    use sui::object::{UID, ID};
+    use sui::object::{ID};
     use sui::sui::SUI;
     use sui::table::Table;
     use sui::coin::Coin;
@@ -27,17 +25,17 @@ module maxi::marketplace {
         transfer_cap: TransferCap
     }
 
-    fun init(ctx: &mut TxContext) {
+    fun init(_ctx: &mut TxContext) {
         // share the marketplace object, set the initial commission
     }
 
-    public fun list(transfer_cap: TransferCap, marketplace: &mut Marketplace) {
+    public fun list(_transfer_cap: TransferCap, _marketplace: &mut Marketplace) {
         // create a listing from transfer_cap add it to marketplace
         abort(0)
     }
 
     public fun buy<T: key + store>(
-        royalty: RoyaltyReceipt<T>, coin: &mut Coin<SUI>, id: ID, safe: &mut Safe<T>, marketplace: &mut Marketplace
+        _royalty: RoyaltyReceipt<T>, _coin: &mut Coin<SUI>, _id: ID, _safe: &mut Safe<T>, _marketplace: &mut Marketplace
     ): T {
         // ...extract marketplace.commission from coin
         // ... extract the Listing for ID, get the TransferCap out of it

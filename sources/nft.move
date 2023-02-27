@@ -80,8 +80,11 @@ module maxi::nft {
         // transfer::freeze_object(collection);
     }
 
-    public fun mint(
-        payment: Coin<SUI>, project: &mut Collection, whitelist: &mut Whitelist, ctx: &mut TxContext
+    public entry fun mint(
+        payment: &mut Coin<SUI>,
+        project: &mut Collection,
+        whitelist: &mut Whitelist,
+        ctx: &mut TxContext
     ) {
         // MaxiNFT {
         //     id: object::new(ctx),
