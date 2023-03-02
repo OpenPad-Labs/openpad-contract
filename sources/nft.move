@@ -14,6 +14,8 @@ module maxi::nft {
     use sui::event::emit;
 
     use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
+    use std::string;
+    use sui::devnet_nft::description;
 
     /// the nft itself
     struct MaxiNFT has key, store {
@@ -22,6 +24,7 @@ module maxi::nft {
         collection: CollectionProof,
         /// metadata understood by the "display" standard goes here
         name: String,
+        description: String,
         url: Url,
         // ... more fields
         // ..., or alternatively, we could put the "standard" metadata in a common structure like
@@ -67,6 +70,7 @@ module maxi::nft {
         nft_id: ID,
         collection_id: ID,
         name: String,
+        description: String,
         url: Url,
     }
 
@@ -80,7 +84,7 @@ module maxi::nft {
         // transfer::freeze_object(collection);
     }
 
-    public entry fun mint(
+    public entry fun presale(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
         whitelist: &mut Whitelist,
@@ -98,21 +102,55 @@ module maxi::nft {
         // let collection_id = collection::collection_id(project);
         // let collection_proof = collection::new_collectionProof(project);
 
-        let (collection_id, collection_proof, name, url) = collection::mint(payment, project, whitelist, nft_id, ctx);
+        let (collection_id, collection_proof, name, description, url) =
+            collection::mint_presale(payment, project, whitelist, nft_id, ctx);
+
+        mint(id, collection_id, collection_proof, name, description, url, ctx);
+    }
+
+    public entry fun public_sale(
+        payment: &mut Coin<SUI>,
+        project: &mut Collection,
+        ctx: &mut TxContext
+    ) {
+
+        let id = object::new(ctx);
+        let nft_id = object::uid_to_inner(&id);
+
+        // let collection_id = collection::collection_id(project);
+        // let collection_proof = collection::new_collectionProof(project);
+
+        let (collection_id, collection_proof, name, description, url) =
+            collection::mint_public_sale(payment, project, nft_id, ctx);
+
+        mint(id, collection_id, collection_proof, name, description, url, ctx);
+    }
+
+    fun mint(
+        id: UID,
+        collection_id: ID,
+        collection_proof: CollectionProof,
+        name: String,
+        description: String,
+        url: Url,
+        ctx: &mut TxContext
+    ) {
 
         let maxiNft = MaxiNFT{
             id,
             collection: collection_proof,
             name,
-            url,
+            description,
+            url
         };
 
         transfer::transfer(maxiNft, tx_context::sender(ctx));
 
         emit(MaxiNFTCreatedEvent {
-            nft_id,
+            nft_id: object::uid_to_inner(&id),
             collection_id,
             name,
+            description,
             url,
         });
     }
