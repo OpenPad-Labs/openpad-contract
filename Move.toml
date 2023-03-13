@@ -3,9 +3,9 @@ name = "maxi-contract"
 version = "0.0.1"
 
 [dependencies]
-# Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
-Sui = { local = "../../mystenlabs/sui/crates/sui-framework" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
 
 [addresses]
-maxi =  "0x0"
-sui =  "0000000000000000000000000000000000000002"
+maxi = "0x0"
+sui = "0x2"
+std = "0x1"

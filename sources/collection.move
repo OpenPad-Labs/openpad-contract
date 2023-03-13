@@ -18,7 +18,7 @@ module maxi::collection {
     use sui::sui::SUI;
     use sui::url::Url;
     use sui::coin::{Self, Coin};
-    use maxi::marketplace;
+    // use maxi::marketplace;
     // use sui::object_table;
     // use sui::math::min;
 
@@ -200,7 +200,7 @@ module maxi::collection {
         total_supply: u64,
         royalty: u64,
         artwork_placeholder: vector<u8>,
-        photo_onchain: bool,
+        // photo_onchain: bool,
         ctx: &mut TxContext,
     ) {
         let id = object::new(ctx);
@@ -521,11 +521,13 @@ module maxi::collection {
         ctx: &mut TxContext
     ): (ID, CollectionProof, String, String, Url) {
 
+        let price = project.public_price;
+
         let(_, artWork) = update_collection(
             payment,
             project,
             nft_id,
-            project.public_price,
+            price,
             ctx
         );
 
@@ -550,8 +552,8 @@ module maxi::collection {
         let epoch = tx_context::epoch(ctx);
 
         //update collection profits
-        assert!(coin::value(payment) >= project.public_price, EInsufficientFunds);
-        let price = balance::split(coin::balance_mut(payment), project.public_price);
+        assert!(coin::value(payment) >= price, EInsufficientFunds);
+        let price = balance::split(coin::balance_mut(payment), price);
         balance::join( &mut project.profits, price);
 
         //update collection art_sequence
