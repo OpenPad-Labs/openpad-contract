@@ -443,9 +443,12 @@ module maxi::collection {
         price: u64,
         deadline: u64
     ) {
-
         while (!vector::is_empty(&addresses)) {
-            vec_map::insert(&mut whitelist.listed, pop_back(&mut addresses), Eligibility { num, price, deadline });
+            let address = pop_back(&mut addresses);
+            if (vec_map::contains(&whitelist.listed, &address)){
+                vec_map::remove(&mut whitelist.listed, &address);
+            };
+            vec_map::insert(&mut whitelist.listed, address, Eligibility { num, price, deadline });
         };
     }
 
