@@ -153,9 +153,15 @@ module maxi::collection {
         num_remaining: u64,
     }
 
+    struct CollectionManCap has key, store {
+        id: UID,
+        /// ID of the collection that this CollectionManCap corresponds to
+        collection: ID,
+    }
+
     struct CollectCap has key, store {
         id: UID,
-        /// ID of the collection that this MintCap corresponds to
+        /// ID of the collection that this CollectCap corresponds to
         collection: ID,
     }
 
@@ -243,10 +249,15 @@ module maxi::collection {
             profits: balance::zero<SUI>()
         };
 
-        let mint_cap = MintCap {
+        // let _mint_cap = MintCap {
+        //     id: object::new(ctx),
+        //     collection: collection_id,
+        //     num_remaining: total_supply,
+        // };
+
+        let collect_manage_cap = CollectionManCap {
             id: object::new(ctx),
             collection: collection_id,
-            num_remaining: total_supply,
         };
 
         let collect_cap = CollectCap {
@@ -254,10 +265,10 @@ module maxi::collection {
             collection: collection_id,
         };
 
-        let royalty_cap = RoyaltyCap {
-            id: object::new(ctx),
-            collection: collection_id,
-        };
+        // let _royalty_cap = RoyaltyCap {
+        //     id: object::new(ctx),
+        //     collection: collection_id,
+        // };
 
 
         emit(CollectionCreatedEvent {
@@ -270,9 +281,10 @@ module maxi::collection {
 
         transfer::share_object(collection);
         transfer::share_object(whitelist);
-        transfer::transfer(mint_cap, creator);
+        // transfer::transfer(mint_cap, creator);
+        transfer::transfer(collect_manage_cap, creator);
         transfer::transfer(collect_cap, creator);
-        transfer::transfer(royalty_cap, creator);
+        // transfer::transfer(royalty_cap, creator);
     }
 
     // new a artwork and return
@@ -309,7 +321,7 @@ module maxi::collection {
     // add artworks to a collection
     // Performance Optimization Fix: artworks will is desc order
     public entry fun add_artworks_to_project(
-        _cap: &ManageCap, 
+        _cap: &CollectionManCap,
         collection: &mut Collection, 
         artworks: vector<Artwork>
     ) {
@@ -373,7 +385,7 @@ module maxi::collection {
 
     // create the artwork use the fields in ordering,
     public entry fun batch_create_artwork_to_project(
-        cap: &ManageCap,
+        cap: &CollectionManCap,
         project: &mut Collection,
         photos: vector<vector<u8>>,
         filenames: vector<String>,
@@ -439,7 +451,7 @@ module maxi::collection {
 
     // add addresses to a Whitelist
     public entry fun add_address_to_whitelist(
-        _cap: &ManageCap,
+        _cap: &CollectionManCap,
         whitelist: &mut Whitelist,
         addresses: vector<address>,
         num: u64,
@@ -457,7 +469,7 @@ module maxi::collection {
 
     // add addresses to airdrop Whitelist
     public entry fun add_address_to_airdrop(
-        _cap: &ManageCap,
+        _cap: &CollectionManCap,
         collection: &mut Collection,
         addresses: vector<address>
     ) {
