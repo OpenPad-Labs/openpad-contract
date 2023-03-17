@@ -14,6 +14,8 @@ module maxi::nft {
     use sui::event::emit;
 
     use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
+    use sui::pay;
+    use std::vector;
 
     /// the nft itself
     struct MaxiNFT has key, store {
@@ -82,7 +84,86 @@ module maxi::nft {
         // transfer::freeze_object(collection);
     }
 
+    public entry fun airdrop(
+        project: &mut Collection,
+        ctx: &mut TxContext
+    ) {
+        let id = object::new(ctx);
+        let nft_id = object::uid_to_inner(&id);
+
+        let (collection_id, collection_proof, name, description, url) =
+            collection::mint_airdrop(project, nft_id, ctx);
+
+        let maxiNft = MaxiNFT{
+            id,
+            collection: collection_proof,
+            name,
+            description,
+            url
+        };
+
+        transfer::transfer(maxiNft, tx_context::sender(ctx));
+
+        emit(MaxiNFTCreatedEvent {
+            nft_id,
+            collection_id,
+            name,
+            description,
+            url,
+        });
+    }
+
     public entry fun presale(
+        payment: &mut Coin<SUI>,
+        project: &mut Collection,
+        whitelist: &mut Whitelist,
+        num: u64,
+        ctx: &mut TxContext
+    ) {
+        while (num > 0) {
+            presale_(payment, project, whitelist, ctx);
+            num = num - 1;
+        };
+    }
+
+    public entry fun public_sale(
+        payment: &mut Coin<SUI>,
+        project: &mut Collection,
+        num: u64,
+        ctx: &mut TxContext
+    ) {
+        while (num > 0) {
+            public_sale_(payment, project, ctx);
+            num = num - 1;
+        };
+    }
+
+    public entry fun presale_mul_coin(
+        payments: vector<Coin<SUI>>,
+        project: &mut Collection,
+        whitelist: &mut Whitelist,
+        num: u64,
+        ctx: &mut TxContext
+    ){
+        let paid = vector::pop_back(&mut payments);
+        pay::join_vec(&mut paid, payments);
+        presale(&mut paid, project, whitelist, num, ctx);
+        transfer::transfer(paid, tx_context::sender(ctx))
+    }
+
+    public entry fun public_sale_mul_coin(
+        payments: vector<Coin<SUI>>,
+        project: &mut Collection,
+        num: u64,
+        ctx: &mut TxContext
+    ){
+        let paid = vector::pop_back(&mut payments);
+        pay::join_vec(&mut paid, payments);
+        public_sale(&mut paid, project, num, ctx);
+        transfer::transfer(paid, tx_context::sender(ctx))
+    }
+
+    fun presale_(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
         whitelist: &mut Whitelist,
@@ -122,7 +203,7 @@ module maxi::nft {
         });
     }
 
-    public entry fun public_sale(
+    fun public_sale_(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
         ctx: &mut TxContext

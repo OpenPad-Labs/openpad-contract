@@ -50,6 +50,7 @@ module maxi::collection {
         minted_nft: VecMap<u64, MintedTime>,    // record the artwork mint by addres, (artwork_idx, address)
         created_at: u64,
         whitelist_id: ID,
+        airdrop_list: VecMap<address, bool>,
         profits: Balance<SUI>,
         // Custom metadata outside of the standard fields goes here
         // custom_metadata: M,
@@ -133,6 +134,7 @@ module maxi::collection {
     const EDeadLine: u64 = 10008;
     const EArtWorkIdx: u64 = 10009;
     const EMaxTotalSupply: u64 = 10010;
+    const EIsMinted: u64 = 10011;
 
     struct ManageCap has key, store {
         id: UID,
@@ -237,6 +239,7 @@ module maxi::collection {
             // photo_onchain,
             created_at,
             whitelist_id,
+            airdrop_list: vec_map::empty(),
             profits: balance::zero<SUI>()
         };
 
@@ -434,7 +437,7 @@ module maxi::collection {
     //     transfer::share_object(whitelist);
     // }
 
-    // add addresses to a Whitelist // TODO
+    // add addresses to a Whitelist
     public entry fun add_address_to_whitelist(
         _cap: &ManageCap,
         whitelist: &mut Whitelist,
@@ -452,7 +455,68 @@ module maxi::collection {
         };
     }
 
-    // user mint // TODO
+    // add addresses to airdrop Whitelist
+    public entry fun add_address_to_airdrop(
+        _cap: &ManageCap,
+        collection: &mut Collection,
+        addresses: vector<address>
+    ) {
+        while (!vector::is_empty(&addresses)) {
+            let address = pop_back(&mut addresses);
+            if (!vec_map::contains(&collection.airdrop_list, &address)){
+                vec_map::insert(&mut collection.airdrop_list, address, false);
+            };
+        };
+    }
+
+    // user mint
+    public fun mint_airdrop(
+        project: &mut Collection,
+        nft_id: ID,
+        ctx: &mut TxContext
+    ): (ID, CollectionProof, String, String, Url) {
+
+        let sender = tx_context::sender(ctx);
+        let epoch = tx_context::epoch(ctx);
+
+        //check airdrop timestamp
+
+        //
+        assert!(vec_map::contains(&project.airdrop_list, &sender), ENotMarchWhiteList);
+        assert!(!*vec_map::get(&project.airdrop_list, &sender), EIsMinted);
+
+        vec_map::remove(&mut project.airdrop_list, &sender);
+        vec_map::insert(&mut project.airdrop_list, sender, true);
+
+        //update collection art_sequence
+        let artWork_idx = project.art_sequence;
+        assert!(ot::length(&project.artworks) > artWork_idx, EArtWorkIdx);
+        let artWork = ot::borrow(&project.artworks, artWork_idx);
+        project.art_sequence = artWork_idx + 1;
+
+        //update collection minted
+        let minted = 0;
+        if (vec_map::contains(&project.minted_num, &sender)){
+            // minted = vec_map::get_mut(&mut _project.minted, &sender);
+            (_, minted) = vec_map::remove(&mut project.minted_num, &sender);
+        };
+        minted = minted + 1;
+        vec_map::insert(&mut project.minted_num, sender, minted);
+
+        //update collection nft id
+        vec_map::insert(&mut project.minted_nft, artWork_idx, MintedTime{owner: sender, nft_id, minted_at: epoch});
+        //check total supply
+        assert!(vec_map::size(&project.minted_nft)<= project.total_supply, EMaxTotalSupply);
+
+        (
+            collection_id(project),
+            new_collectionProof(project),
+            artwork_name(artWork),
+            artwork_description(artWork),
+            artwork_url(artWork)
+        )
+    }
+
     public fun mint_presale(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
@@ -468,7 +532,7 @@ module maxi::collection {
 
         assert!(vec_map::contains(&whitelist.listed, &sender), ENotMarchWhiteList);
 
-        let eligibility = vec_map::get(&whitelist.listed, &tx_context::sender(ctx));
+        let eligibility = vec_map::get(&whitelist.listed, &sender);
 
         assert!(eligibility.deadline > epoch, EDeadLine);
 
@@ -479,31 +543,6 @@ module maxi::collection {
             eligibility.price,
             ctx
         );
-
-        // //update collection profits
-        // assert!(coin::value(payment) >= eligibility.price, EInsufficientFunds);
-        // let price = balance::split(coin::balance_mut(payment), eligibility.price);
-        // balance::join( &mut project.profits, price);
-        //
-        // //update collection art_sequence
-        // let artWork_idx = project.art_sequence;
-        // // assert!(ot::length(&project.artworks) > artWork_idx, EArtWorkIdx);
-        // // let artWork = ot::borrow(&project.artworks, artWork_idx);
-        // project.art_sequence = artWork_idx + 1;
-        //
-        // //update collection minted
-        // let minted = 0;
-        // if (vec_map::contains(&project.minted_num, &sender)){
-        //     // minted = vec_map::get_mut(&mut _project.minted, &sender);
-        //     (_, minted) = vec_map::remove(&mut project.minted_num, &sender);
-        // };
-        // minted = minted + 1;
-        // vec_map::insert(&mut project.minted_num, sender, minted);
-        //
-        // //update collection nft id
-        // vec_map::insert(&mut project.minted_nft, artWork_idx, MintedTime{owner: sender, nft_id, minted_at: epoch});
-        // //check total supply
-        // assert!(vec_map::size(&project.minted_nft)<= project.total_supply, EMaxTotalSupply);
 
         //check whiteList
         assert!(eligibility.num >= minted || eligibility.num == 0, EMintTooMany);
@@ -555,9 +594,14 @@ module maxi::collection {
         let epoch = tx_context::epoch(ctx);
 
         //update collection profits
-        assert!(coin::value(payment) >= price, EInsufficientFunds);
-        let price = balance::split(coin::balance_mut(payment), price);
-        balance::join( &mut project.profits, price);
+        if (price > 0) {
+            assert!(coin::value(payment) >= price, EInsufficientFunds);
+            let price = balance::split(coin::balance_mut(payment), price);
+            balance::join( &mut project.profits, price);
+        } else {
+            vec_map::remove(&mut project.airdrop_list, &sender);
+            vec_map::insert(&mut project.airdrop_list, sender, true);
+        };
 
         //update collection art_sequence
         let artWork_idx = project.art_sequence;
@@ -614,6 +658,7 @@ module maxi::collection {
             // photo_onchain,
             created_at,
             whitelist_id,
+            airdrop_list,
             profits,
         } = collection;
 
@@ -637,6 +682,7 @@ module maxi::collection {
             // photo_onchain,
             created_at,
             whitelist_id,
+            airdrop_list,
             profits,
         };
 
