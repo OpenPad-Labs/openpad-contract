@@ -13,7 +13,7 @@ module maxi::nft {
     use sui::transfer;
     use sui::event::emit;
 
-    use maxi::collection::{Self, Collection, Whitelist, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
+    use maxi::collection::{Self, Collection, MintCap, RoyaltyCap, CollectionProof, RoyaltyReceipt};
     use sui::pay;
     use std::vector;
 
@@ -116,12 +116,11 @@ module maxi::nft {
     public entry fun presale(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
-        whitelist: &mut Whitelist,
         num: u64,
         ctx: &mut TxContext
     ) {
         while (num > 0) {
-            presale_(payment, project, whitelist, ctx);
+            presale_(payment, project, ctx);
             num = num - 1;
         };
     }
@@ -141,13 +140,12 @@ module maxi::nft {
     public entry fun presale_mul_coin(
         payments: vector<Coin<SUI>>,
         project: &mut Collection,
-        whitelist: &mut Whitelist,
         num: u64,
         ctx: &mut TxContext
     ){
         let paid = vector::pop_back(&mut payments);
         pay::join_vec(&mut paid, payments);
-        presale(&mut paid, project, whitelist, num, ctx);
+        presale(&mut paid, project, num, ctx);
         transfer::transfer(paid, tx_context::sender(ctx))
     }
 
@@ -166,7 +164,6 @@ module maxi::nft {
     fun presale_(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
-        whitelist: &mut Whitelist,
         ctx: &mut TxContext
     ) {
         // MaxiNFT {
@@ -182,7 +179,7 @@ module maxi::nft {
         // let collection_proof = collection::new_collectionProof(project);
 
         let (collection_id, collection_proof, name, description, url) =
-            collection::mint_presale(payment, project, whitelist, nft_id, ctx);
+            collection::mint_presale(payment, project, nft_id, ctx);
 
         let maxiNft = MaxiNFT{
             id,

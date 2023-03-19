@@ -49,7 +49,7 @@ module maxi::collection {
         minted_num: VecMap<address, u64>,   // record a address and minted number, (address, artwork numbers)
         minted_nft: VecMap<u64, MintedTime>,    // record the artwork mint by addres, (artwork_idx, address)
         created_at: u64,
-        whitelist_id: ID,
+        whitelist: VecMap<address, Eligibility>,
         airdrop_list: VecMap<address, bool>,
         profits: Balance<SUI>,
         // Custom metadata outside of the standard fields goes here
@@ -90,11 +90,11 @@ module maxi::collection {
         // background: Option<String>,
     }
     
-    struct Whitelist has key, store {
-        id: UID,
-        collection_id: ID,
-        listed: VecMap<address, Eligibility>,     // record a address can mint number
-    }
+    // struct Whitelist has store, copy, drop {
+    //     // id: UID,
+    //     // collection_id: ID,
+    //     listed: VecMap<address, Eligibility>,     // record a address can mint number
+    // }
 
     struct Eligibility has store, copy, drop {
         num: u64,
@@ -216,14 +216,15 @@ module maxi::collection {
         let created_at = tx_context::epoch(ctx);
         let artworks = ot::new(ctx);
 
-        let whitelist_uid = object::new(ctx);
-        let whitelist_id = object::uid_to_inner(&whitelist_uid);
+        // let whitelist_uid = object::new(ctx);
+        // let whitelist_id = object::uid_to_inner(&whitelist_uid);
 
-        let whitelist = Whitelist {
-            id: whitelist_uid,
-            collection_id,
-            listed: vec_map::empty()
-        };
+        // let whitelist = Whitelist {
+        //     // id: whitelist_uid,
+        //     // collection_id,
+        //     listed: vec_map::empty()
+        // };
+        let whitelist = vec_map::empty();
 
         let collection = Collection {
             id,
@@ -244,7 +245,7 @@ module maxi::collection {
             minted_nft: vec_map::empty(),
             // photo_onchain,
             created_at,
-            whitelist_id,
+            whitelist,
             airdrop_list: vec_map::empty(),
             profits: balance::zero<SUI>()
         };
@@ -280,7 +281,7 @@ module maxi::collection {
         });
 
         transfer::share_object(collection);
-        transfer::share_object(whitelist);
+        // transfer::share_object(whitelist);
         // transfer::transfer(mint_cap, creator);
         transfer::transfer(collect_manage_cap, creator);
         transfer::transfer(collect_cap, creator);
@@ -452,7 +453,7 @@ module maxi::collection {
     // add addresses to a Whitelist
     public entry fun add_address_to_whitelist(
         _cap: &CollectionManCap,
-        whitelist: &mut Whitelist,
+        project: &mut Collection,
         addresses: vector<address>,
         num: u64,
         price: u64,
@@ -460,10 +461,10 @@ module maxi::collection {
     ) {
         while (!vector::is_empty(&addresses)) {
             let address = pop_back(&mut addresses);
-            if (vec_map::contains(&whitelist.listed, &address)){
-                vec_map::remove(&mut whitelist.listed, &address);
+            if (vec_map::contains(&project.whitelist, &address)){
+                vec_map::remove(&mut project.whitelist, &address);
             };
-            vec_map::insert(&mut whitelist.listed, address, Eligibility { num, price, deadline });
+            vec_map::insert(&mut project.whitelist, address, Eligibility { num, price, deadline });
         };
     }
 
@@ -532,7 +533,6 @@ module maxi::collection {
     public fun mint_presale(
         payment: &mut Coin<SUI>,
         project: &mut Collection,
-        whitelist: &mut Whitelist,
         nft_id: ID,
         ctx: &mut TxContext
     ): (ID, CollectionProof, String, String, Url) {
@@ -540,11 +540,13 @@ module maxi::collection {
         let sender = tx_context::sender(ctx);
         let epoch = tx_context::epoch(ctx);
 
-        assert!(object::uid_to_inner(&project.id) == whitelist.collection_id, ENotMarchCollection);
+        // assert!(object::uid_to_inner(&project.id) == whitelist.collection_id, ENotMarchCollection);
 
-        assert!(vec_map::contains(&whitelist.listed, &sender), ENotMarchWhiteList);
+        assert!(vec_map::contains(&project.whitelist, &sender), ENotMarchWhiteList);
 
-        let eligibility = vec_map::get(&whitelist.listed, &sender);
+        let whitelist_copy = project.whitelist;
+
+        let eligibility = vec_map::get(&whitelist_copy, &sender);
 
         assert!(eligibility.deadline > epoch, EDeadLine);
 
@@ -669,7 +671,7 @@ module maxi::collection {
             minted_nft,
             // photo_onchain,
             created_at,
-            whitelist_id,
+            whitelist,
             airdrop_list,
             profits,
         } = collection;
@@ -693,7 +695,7 @@ module maxi::collection {
             minted_nft,
             // photo_onchain,
             created_at,
-            whitelist_id,
+            whitelist,
             airdrop_list,
             profits,
         };
@@ -771,9 +773,9 @@ module maxi::collection {
         object::uid_to_inner(&collection.id)
     }
 
-    public fun collection_whitelist_id(collection: &Collection): ID {
-        collection.whitelist_id
-    }
+    // public fun collection_whitelist_id(collection: &Collection): ID {
+    //     object::uid_to_inner(&collection.whitelist.id)
+    // }
 
     public fun collection_name(collection: &Collection): String {
         collection.name
